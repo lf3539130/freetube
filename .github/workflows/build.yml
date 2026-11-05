@@ -14,6 +14,8 @@ jobs:
 
       - name: Build FreeTube
         run: |
+          set -e
+
           xcodebuild \
             -project FreeTube/FreeTube.xcodeproj \
             -scheme FreeTube \
@@ -24,15 +26,53 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Verify App
+        run: |
+          set -e
+
+          APP_PATH="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/FreeTube.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: FreeTube.app not found"
+            exit 1
+          fi
+
+          if [ ! -f "$APP_PATH/Info.plist" ]; then
+            echo "ERROR: Info.plist missing"
+            exit 1
+          fi
+
+          echo "FreeTube.app verified"
+
       - name: Package IPA
         run: |
+          set -e
+
+          rm -rf Payload FreeTube.ipa
+
           mkdir -p Payload
-          cp -R "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/FreeTube.app" Payload/
-          zip -r FreeTube.ipa Payload
+
+          APP_PATH="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/FreeTube.app"
+
+          cp -R "$APP_PATH" Payload/
+
+          zip -qry FreeTube.ipa Payload
+
+          echo "Checking IPA archive..."
+
+          unzip -tq FreeTube.ipa
+
+          unzip -Z1 FreeTube.ipa | grep -Fx "Payload/FreeTube.app/Info.plist"
+
+          ls -lh FreeTube.ipa
+
+          echo "IPA packaging successful"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: FreeTube-IPA
           path: FreeTube.ipa
+          if-no-files-found: error
           retention-days: 3
+          compression-level: 0
